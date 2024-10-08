@@ -20,7 +20,13 @@ API_TOKEN = os.getenv('API_TOKEN')
 BOARD_NAME = 'MOAR Dev Board'
 
 # Define the list of sprint names you want to process
-SPRINT_NAMES = ['MOAR 2024 Sprint 19', 'MOAR 2024 Sprint 18', 'MOAR 2024 Sprint 17', 'MOAR 2024 Sprint 16']  # Modify as needed
+SPRINT_NAMES = [
+    'MOAR 2024 Sprint 20', 
+    'MOAR 2024 Sprint 19', 
+    'MOAR 2024 Sprint 18', 
+    'MOAR 2024 Sprint 17', 
+    'MOAR 2024 Sprint 16'
+]  # Modify as needed
 
 # Output CSV file path
 OUTPUT_CSV = 'jira_sprint_issues.csv'
@@ -46,6 +52,8 @@ WORK_END_HOUR = 18    # 6 PM
 
 # Optional: Define Holidays (as a list of dates)
 HOLIDAYS = [
+    '2024-09-16', # Malaysia Day
+    '2024-09-17', 
     # '2024-12-25',  # Christmas
     # '2024-01-01',  # New Year's Day
     # Add more holidays as needed
@@ -310,7 +318,7 @@ def fetch_issue_changelog(jira_url, username, api_token, issue_key):
     Returns:
         dict: JSON data of the issue with changelog, or None if failed.
     """
-    url = f"{jira_url}/rest/api/3/issue/{issue_key}?expand=changelog&fields=key,created,status,{STORY_POINTS_FIELD}"
+    url = f"{jira_url}/rest/api/3/issue/{issue_key}?expand=changelog&fields=key,created,status,assignee,{STORY_POINTS_FIELD}"
     auth = HTTPBasicAuth(username, api_token)
     headers = {"Accept": "application/json"}
     
@@ -335,7 +343,7 @@ def process_changelog(issue_data, selected_statuses, working_days, work_start_ho
         holidays (list): List of holiday dates as strings.
         
     Returns:
-        tuple: (story_points, list of status changes with business hours)
+        tuple: (assignee_name,story_points, list of status changes with business hours)
     """
     fields = issue_data.get('fields', {})
     
@@ -345,6 +353,10 @@ def process_changelog(issue_data, selected_statuses, working_days, work_start_ho
     # Initialize variables
     status_changes = []
     creation_time_str = fields.get('created')
+
+    # Parse Assignee
+    assignee = fields.get('assignee', {})
+    assignee_name = assignee.get('displayName', 'Unknown')
     
     # Parse creation time
     try:
@@ -395,6 +407,7 @@ def process_changelog(issue_data, selected_statuses, working_days, work_start_ho
                     )
                     
                     status_changes.append({
+                        'Assignee': assignee_name,
                         'Status': current_status,
                         'Entered': current_time.strftime('%Y-%m-%d %H:%M:%S %Z'),
                         'Exited': timestamp.strftime('%Y-%m-%d %H:%M:%S %Z'),
@@ -417,6 +430,7 @@ def process_changelog(issue_data, selected_statuses, working_days, work_start_ho
             holidays
         )
         status_changes.append({
+            'Assignee': assignee_name,
             'Status': current_status,
             'Entered': current_time.strftime('%Y-%m-%d %H:%M:%S %Z'),
             'Exited': 'N/A (Current Status)',
@@ -488,6 +502,7 @@ def main():
                     'Sprint Name': sprint_name,  # Add Sprint Name
                     'Issue Key': issue_key,
                     'Issue URL': f"{JIRA_URL}/browse/{issue_key}",
+                    'Assignee': status_entry['Assignee'],
                     'Story Points': story_points,
                     'Status': status_entry['Status'],
                     'Entered': status_entry['Entered'],
@@ -501,7 +516,7 @@ def main():
     # Step 4: Export to CSV
     try:
         with open(OUTPUT_CSV, 'w', newline='', encoding='utf-8') as csvfile:
-            fieldnames = ['Sprint Name', 'Issue Key', 'Issue URL', 'Story Points', 'Status', 'Entered', 'Exited', 'Duration (Hours)']
+            fieldnames = ['Sprint Name', 'Issue Key', 'Issue URL', 'Assignee', 'Story Points', 'Status', 'Entered', 'Exited', 'Duration (Hours)']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             
             writer.writeheader()
